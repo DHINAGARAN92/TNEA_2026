@@ -1,0 +1,765 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TNEA Cutoff Viewer</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #0f1729;
+    --bg-soft: #16203a;
+    --panel: #1c2842;
+    --panel-2: #223050;
+    --ink: #eef2fb;
+    --ink-soft: #9fb0d0;
+    --ink-faint: #6a7ea3;
+    --line: #2c3a5c;
+    --line-soft: #24314e;
+    --brand: #ffb347;
+    --brand-deep: #f4941f;
+    --accent: #4ea1ff;
+    --accent-soft: #16385f;
+    --good: #4ade80;
+    --radius: 14px;
+    --radius-sm: 9px;
+    --shadow: 0 10px 40px -12px rgba(0,0,0,.55);
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: "Inter", -apple-system, system-ui, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f5f6fb; --bg-soft: #eceffa; --panel: #ffffff; --panel-2: #f4f6fd;
+      --ink: #16213b; --ink-soft: #53617f; --ink-faint: #8b98b4;
+      --line: #dde3f0; --line-soft: #e9edf7; --accent-soft: #e5f0ff;
+      --shadow: 0 10px 34px -16px rgba(20,40,90,.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: var(--sans);
+    background:
+      radial-gradient(1200px 600px at 85% -10%, color-mix(in srgb, var(--brand) 12%, transparent), transparent 60%),
+      radial-gradient(1000px 500px at -10% 0%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 55%),
+      var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 28px 20px 60px; }
+
+  /* ---------- Header ---------- */
+  header.masthead { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 22px; }
+  .brandline { display: flex; align-items: center; gap: 14px; }
+  .mark {
+    width: 46px; height: 46px; border-radius: 13px; flex: none;
+    background: linear-gradient(145deg, var(--brand), var(--brand-deep));
+    display: grid; place-items: center; color: #201400; font-weight: 800; font-size: 20px;
+    box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--brand) 70%, transparent);
+  }
+  .masthead h1 { margin: 0; font-size: 25px; font-weight: 750; letter-spacing: -.02em; }
+  .masthead .sub { margin: 3px 0 0; color: var(--ink-soft); font-size: 13.5px; }
+  .yr-pill { font-size: 12px; color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent); padding: 5px 11px; border-radius: 999px; font-weight: 600; }
+
+  /* ---------- Cards ---------- */
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+
+  /* ---------- Dropzone ---------- */
+  .drop { padding: 26px; text-align: center; cursor: pointer; transition: border-color .18s, background .18s; }
+  .drop.empty { border-style: dashed; }
+  .drop.drag { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 8%, var(--panel)); }
+  .drop input { display: none; }
+  .drop .icon { width: 42px; height: 42px; margin: 0 auto 10px; color: var(--brand); }
+  .drop h3 { margin: 0 0 4px; font-size: 16px; }
+  .drop p { margin: 0; color: var(--ink-soft); font-size: 13px; }
+  .drop .browse { color: var(--brand); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+  .status { margin-top: 12px; font-size: 13px; color: var(--ink-soft); min-height: 18px; }
+  .status.err { color: #ff8f6b; }
+  .status.ok { color: var(--good); }
+
+  .loaded-bar { display: none; align-items: center; gap: 12px; padding: 13px 18px; }
+  .loaded-bar.show { display: flex; }
+  .loaded-bar .fname { font-weight: 600; font-size: 14px; }
+  .loaded-bar .meta { color: var(--ink-soft); font-size: 12.5px; }
+  .loaded-bar .file-ic { width: 34px; height: 34px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; flex: none; }
+  .loaded-bar .spacer { flex: 1; }
+
+  /* ---------- Stats ---------- */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 18px 0; }
+  .stat { padding: 15px 16px; }
+  .stat .k { font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; }
+  .stat .v { font-size: 26px; font-weight: 750; margin-top: 4px; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+  .stat .v small { font-size: 14px; color: var(--ink-soft); font-weight: 600; }
+
+  /* ---------- Filter panel ---------- */
+  .filters { padding: 18px; margin-bottom: 16px; }
+  .filters-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; gap: 12px; flex-wrap: wrap; }
+  .filters-head h2 { margin: 0; font-size: 14px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-soft); font-weight: 650; }
+  .head-actions { display: flex; align-items: center; gap: 8px; }
+  .searchbox { position: relative; margin-bottom: 15px; }
+  .searchbox svg { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); width: 17px; height: 17px; color: var(--ink-faint); }
+  .searchbox input { width: 100%; padding: 12px 14px 12px 40px; font-size: 15px; }
+
+  .field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+  .field label { display: block; font-size: 12px; font-weight: 600; color: var(--ink-soft); margin-bottom: 5px; }
+
+  input, select {
+    width: 100%; font: inherit; font-size: 14px; color: var(--ink);
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: var(--radius-sm); padding: 9px 11px; outline: none; transition: border-color .15s, box-shadow .15s;
+  }
+  select { cursor: pointer; appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--ink-faint) 50%), linear-gradient(135deg, var(--ink-faint) 50%, transparent 50%);
+    background-position: calc(100% - 16px) 55%, calc(100% - 11px) 55%;
+    background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; padding-right: 30px; }
+  input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+  input::placeholder { color: var(--ink-faint); }
+
+  /* range */
+  .range-field .range-vals { display: flex; gap: 8px; align-items: center; }
+  .range-field .range-vals input { text-align: center; font-variant-numeric: tabular-nums; }
+  .range-field .dash { color: var(--ink-faint); }
+
+  /* chips */
+  .active-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 5px 6px 5px 11px;
+    background: var(--accent-soft); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+    border-radius: 999px; font-weight: 500; }
+  .chip b { font-weight: 700; }
+  .chip button { border: 0; background: color-mix(in srgb, var(--accent) 20%, transparent); color: inherit; cursor: pointer;
+    width: 17px; height: 17px; border-radius: 999px; display: grid; place-items: center; font-size: 13px; line-height: 1; padding: 0; }
+  .chip button:hover { background: var(--accent); color: #fff; }
+
+  .btn { font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: var(--radius-sm);
+    border: 1px solid var(--line); background: var(--panel-2); color: var(--ink); padding: 8px 14px; transition: background .15s, border-color .15s; }
+  .btn:hover { border-color: var(--accent); }
+  .btn.ghost { background: transparent; border-color: transparent; color: var(--ink-soft); padding: 6px 10px; }
+  .btn.ghost:hover { color: var(--ink); background: var(--panel-2); }
+
+  /* ---------- Table ---------- */
+  .table-card { padding: 4px; overflow: hidden; }
+  .table-scroll { overflow-x: auto; border-radius: 11px; }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13.5px; }
+  thead th {
+    position: sticky; top: 0; text-align: left; padding: 12px 14px; white-space: nowrap;
+    background: var(--panel-2); color: var(--ink-soft); font-weight: 650; font-size: 12px;
+    letter-spacing: .03em; border-bottom: 1px solid var(--line); cursor: pointer; user-select: none;
+  }
+  thead th:hover { color: var(--ink); }
+  thead th .arrow { color: var(--accent); font-size: 11px; margin-left: 3px; }
+  tbody td { padding: 11px 14px; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+  tbody td.num { font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 12.5px; }
+  tbody td.name { white-space: normal; min-width: 220px; font-weight: 500; }
+  tbody tr:hover td { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+  tbody tr:last-child td { border-bottom: 0; }
+  .cutoff-cell { font-weight: 700; color: var(--brand); }
+
+  .empty-state { padding: 50px 20px; text-align: center; color: var(--ink-soft); }
+  .empty-state svg { width: 40px; height: 40px; color: var(--ink-faint); margin-bottom: 10px; }
+  .empty-state h3 { margin: 0 0 4px; color: var(--ink); font-size: 16px; }
+
+  /* ---------- Pager ---------- */
+  .pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; flex-wrap: wrap; }
+  .pager .info { color: var(--ink-soft); font-size: 13px; }
+  .pager .controls { display: flex; align-items: center; gap: 8px; }
+  .pager .rows-sel { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ink-soft); }
+  .pager .rows-sel select { width: auto; padding: 6px 28px 6px 10px; }
+  .pager button:disabled { opacity: .4; cursor: not-allowed; }
+  .pager button:disabled:hover { border-color: var(--line); }
+
+  .hidden { display: none !important; }
+  @media (max-width: 560px) {
+    .wrap { padding: 18px 12px 40px; }
+    .masthead h1 { font-size: 21px; }
+    thead th, tbody td { padding: 9px 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="brandline">
+      <div class="mark">TN</div>
+      <div>
+        <h1>TNEA Cutoff Viewer</h1>
+        <p class="sub">Load your counselling workbook, then filter colleges by community, branch and cutoff.</p>
+      </div>
+    </div>
+    <span class="yr-pill" id="yr-pill">Anna University Admissions</span>
+  </header>
+
+  <!-- Dropzone -->
+  <div class="card drop empty" id="drop">
+    <input type="file" id="file" accept=".xlsx,.xls,.csv">
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    <h3>Drop your cutoff file here</h3>
+    <p>or <span class="browse">browse</span> — supports .xlsx, .xls and .csv</p>
+    <div class="status" id="status"></div>
+  </div>
+
+  <!-- Loaded file bar -->
+  <div class="card loaded-bar" id="loaded-bar">
+    <div class="file-ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+    <div>
+      <div class="fname" id="loaded-name"></div>
+      <div class="meta" id="loaded-meta"></div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn ghost" id="change-file">Replace file</button>
+  </div>
+
+  <!-- Results -->
+  <div id="results" class="hidden">
+
+    <div class="stats" id="stats"></div>
+
+    <div class="card filters">
+      <div class="filters-head">
+        <h2>Filters</h2>
+        <div class="head-actions">
+          <button class="btn" id="export-csv" title="Download the filtered rows as CSV">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            CSV
+          </button>
+          <button class="btn" id="export-xlsx" title="Download the filtered rows as an Excel file">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Excel
+          </button>
+          <button class="btn ghost" id="clear-all">Clear all</button>
+        </div>
+      </div>
+
+      <div class="searchbox">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="search" id="search" placeholder="Search across every column — college name, code, branch…">
+      </div>
+
+      <div class="field-grid" id="field-grid"></div>
+
+      <div class="active-chips" id="chips"></div>
+    </div>
+
+    <div class="card table-card">
+      <div class="table-scroll">
+        <table id="table">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="empty" class="empty-state hidden">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        <h3>No colleges match</h3>
+        <p>Try widening the cutoff range or clearing a filter.</p>
+      </div>
+    </div>
+
+    <div class="card pager" id="pager">
+      <div class="rows-sel">
+        Rows
+        <select id="page-size">
+          <option>15</option><option>25</option><option selected>50</option><option>100</option>
+        </select>
+      </div>
+      <div class="info" id="page-info"></div>
+      <div class="controls">
+        <button class="btn" id="prev">← Prev</button>
+        <button class="btn" id="next">Next →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const drop = $('drop'), fileInput = $('file'), statusEl = $('status');
+  const loadedBar = $('loaded-bar'), results = $('results');
+  const fieldGrid = $('field-grid'), chipsEl = $('chips'), searchEl = $('search');
+  const thead = $('table').querySelector('thead'), tbody = $('table').querySelector('tbody');
+  const emptyEl = $('empty'), statsEl = $('stats');
+  const pageSizeEl = $('page-size'), pageInfo = $('page-info'), prevBtn = $('prev'), nextBtn = $('next');
+
+  // Heuristics for TNEA workbooks
+  const CUTOFF_HINTS = ['cutoff','bc','mbc','sc','st','oc','sca','bcm','general','aggregate','marks'];
+  const NAME_HINTS = ['college name','institution','institute name','college','institution name'];
+  const ID_HINTS = ['code','s.no','sno','s no','serial','id','rank']; // numeric but not a range — treat as dropdown/text
+  const CATEGORY_MAX = 40; // columns with <= this many distinct values become dropdowns
+
+  const S = {
+    headers: [], rows: [], types: [],      // types: 'num' | 'name' | 'text'
+    text: {}, selects: {}, ranges: {},      // filter state keyed by column index
+    cutoffCols: [],                          // indexes of cutoff/score columns sharing one range
+    cutoffRange: { lo: null, hi: null },     // the single combined min/max for all cutoff columns
+    search: '', sortCol: null, sortDir: 1, page: 1
+  };
+
+  const num = (v) => {
+    const n = parseFloat(String(v ?? '').replace(/[^0-9.\-]/g, ''));
+    return Number.isFinite(n) ? n : null;
+  };
+  const norm = (h) => String(h).replace(/\s+/g,' ').trim().toLowerCase();
+
+  /* ---------- Load ---------- */
+  function handleFile(file) {
+    if (!file) return;
+    setStatus(`Reading ${file.name}…`, '');
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+        const sheet = wb.SheetNames[0];
+        if (!sheet) throw new Error('No worksheets found in this file.');
+        const raw = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { header: 1, defval: '' });
+        if (!raw.length) throw new Error('That worksheet is empty.');
+        buildModel(raw);
+        showLoaded(file, sheet);
+      } catch (err) {
+        setStatus(err.message || 'Could not read that file.', 'err');
+        results.classList.add('hidden');
+        loadedBar.classList.remove('show');
+        drop.classList.remove('hidden');
+      }
+    };
+    reader.onerror = () => setStatus('Could not read that file.', 'err');
+    reader.readAsArrayBuffer(file);
+  }
+
+  function buildModel(raw) {
+    S.headers = raw[0].map((v,i) => (String(v).trim() || `Column ${i+1}`));
+    S.rows = raw.slice(1).filter(r => r.some(c => String(c ?? '').trim() !== ''));
+
+    // classify each column: 'num' (range filter), 'name' (wide text cell + text filter), 'text' (dropdown or text filter)
+    S.types = S.headers.map((h, i) => {
+      const key = norm(h);
+      const distinct = new Set(S.rows.map(r => String(r[i] ?? '').trim()).filter(Boolean));
+
+      // 1) Named free-text columns (e.g. "College Name") win outright — never a range,
+      //    even when the values happen to contain numbers.
+      if (NAME_HINTS.some(k => key.includes(k)) && distinct.size > CATEGORY_MAX) return 'name';
+
+      // 2) ID / code / serial columns are numeric but meaningless as a range.
+      if (ID_HINTS.some(k => key === k || key.includes(k))) return 'text';
+
+      // 3) Numeric / cutoff detection for score columns.
+      let nums = 0, filled = 0;
+      for (const r of S.rows) {
+        const v = r[i];
+        if (String(v ?? '').trim() === '') continue;
+        filled++; if (num(v) !== null) nums++;
+      }
+      // A cutoff hint counts if it appears as a whole word anywhere in the header (bc, mbc, sc…).
+      const words = key.split(/[^a-z0-9]+/).filter(Boolean);
+      const hasCutoffHint = CUTOFF_HINTS.some(k => words.includes(k)) || key.includes('cutoff');
+      // If the header clearly names a cutoff column, treat it as numeric as long as SOME
+      // values are numbers — real files use "-", "NA", "Nil" placeholders for no-admission rows,
+      // which would otherwise wrongly push the column below the numeric threshold.
+      const numeric = filled > 0 && (
+        (hasCutoffHint && nums > 0) ||
+        nums / filled > 0.95
+      );
+      if (numeric) return 'num';
+
+      return 'text';
+    });
+
+    // cutoff columns = numeric columns whose header carries a cutoff/community hint,
+    // so BC 2025, BC 2024, MBC, SC, etc. all share one combined min/max filter.
+    S.cutoffCols = S.headers.reduce((acc, h, i) => {
+      if (S.types[i] !== 'num') return acc;
+      const words = norm(h).split(/[^a-z0-9]+/).filter(Boolean);
+      if (CUTOFF_HINTS.some(k => words.includes(k)) || norm(h).includes('cutoff')) acc.push(i);
+      return acc;
+    }, []);
+
+    // reset filter state
+    S.text = {}; S.selects = {}; S.ranges = {};
+    S.cutoffRange = { lo: null, hi: null };
+    S.search = ''; searchEl.value = '';
+    S.sortCol = null; S.sortDir = 1; S.page = 1;
+
+    buildFilters();
+    render();
+  }
+
+  function distinctValues(i) {
+    const set = new Set();
+    for (const r of S.rows) {
+      const v = String(r[i] ?? '').trim();
+      if (v) set.add(v);
+      if (set.size > CATEGORY_MAX + 1) break;
+    }
+    return [...set];
+  }
+
+  /* ---------- Filter UI ---------- */
+  function buildFilters() {
+    fieldGrid.innerHTML = '';
+    const cutoffSet = new Set(S.cutoffCols);
+    const useCombined = S.cutoffCols.length >= 2; // combine only when there are 2+ cutoff columns
+    let combinedInserted = false;
+
+    S.headers.forEach((h, i) => {
+      const type = S.types[i];
+
+      // Cutoff columns share a single range control; render it once, in place of the first one.
+      if (useCombined && cutoffSet.has(i)) {
+        if (combinedInserted) return;
+        fieldGrid.appendChild(buildCombinedCutoffField());
+        combinedInserted = true;
+        return;
+      }
+
+      const field = document.createElement('div');
+      field.className = 'field' + (type === 'num' ? ' range-field' : '');
+      const label = document.createElement('label');
+      label.textContent = h;
+      field.appendChild(label);
+
+      if (type === 'num') {
+        const wrap = document.createElement('div'); wrap.className = 'range-vals';
+        const lo = document.createElement('input'); lo.type = 'number'; lo.placeholder = 'min'; lo.inputMode = 'decimal';
+        const dash = document.createElement('span'); dash.className = 'dash'; dash.textContent = '–';
+        const hi = document.createElement('input'); hi.type = 'number'; hi.placeholder = 'max'; hi.inputMode = 'decimal';
+        const apply = () => {
+          S.ranges[i] = { lo: num(lo.value), hi: num(hi.value) };
+          S.page = 1; render();
+        };
+        lo.addEventListener('input', apply); hi.addEventListener('input', apply);
+        wrap.append(lo, dash, hi); field.appendChild(wrap);
+      } else {
+        const vals = distinctValues(i);
+        if (type === 'text' && vals.length <= CATEGORY_MAX && vals.length > 1) {
+          const sel = document.createElement('select');
+          sel.innerHTML = `<option value="">All</option>` +
+            vals.sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}))
+                .map(v => `<option>${escapeHtml(v)}</option>`).join('');
+          sel.addEventListener('change', () => { S.selects[i] = sel.value; S.page = 1; render(); });
+          field.appendChild(sel);
+        } else {
+          const inp = document.createElement('input');
+          inp.type = 'search'; inp.placeholder = `Filter ${h.toLowerCase()}…`;
+          inp.addEventListener('input', () => { S.text[i] = inp.value.trim().toLowerCase(); S.page = 1; render(); });
+          field.appendChild(inp);
+        }
+      }
+      fieldGrid.appendChild(field);
+    });
+  }
+
+  function buildCombinedCutoffField() {
+    const names = S.cutoffCols.map(i => S.headers[i]).join(' / ');
+    const field = document.createElement('div');
+    field.className = 'field range-field';
+    const label = document.createElement('label');
+    label.textContent = 'Cutoff';
+    label.title = `Applies to ${names}`;
+    field.appendChild(label);
+
+    const wrap = document.createElement('div'); wrap.className = 'range-vals';
+    const lo = document.createElement('input'); lo.type = 'number'; lo.placeholder = 'min'; lo.inputMode = 'decimal';
+    lo.className = 'cutoff-lo'; if (S.cutoffRange.lo !== null) lo.value = S.cutoffRange.lo;
+    const dash = document.createElement('span'); dash.className = 'dash'; dash.textContent = '–';
+    const hi = document.createElement('input'); hi.type = 'number'; hi.placeholder = 'max'; hi.inputMode = 'decimal';
+    hi.className = 'cutoff-hi'; if (S.cutoffRange.hi !== null) hi.value = S.cutoffRange.hi;
+    const apply = () => { S.cutoffRange = { lo: num(lo.value), hi: num(hi.value) }; S.page = 1; render(); };
+    lo.addEventListener('input', apply); hi.addEventListener('input', apply);
+    wrap.append(lo, dash, hi); field.appendChild(wrap);
+
+    const hint = document.createElement('small');
+    hint.style.cssText = 'display:block;margin-top:5px;color:var(--ink-faint);font-size:11px;';
+    hint.textContent = `Matches ${names}`;
+    field.appendChild(hint);
+    return field;
+  }
+
+  /* ---------- Filtering + sorting ---------- */
+  function filtered() {
+    const q = S.search;
+    const combined = S.cutoffCols.length >= 2;
+    const cLo = S.cutoffRange.lo, cHi = S.cutoffRange.hi;
+    const cutoffActive = combined && (cLo !== null || cHi !== null);
+
+    let rows = S.rows.filter(r => {
+      if (q && !r.some(c => String(c ?? '').toLowerCase().includes(q))) return false;
+      for (const i in S.text) { const f = S.text[i]; if (f && !String(r[i] ?? '').toLowerCase().includes(f)) return false; }
+      for (const i in S.selects) { const v = S.selects[i]; if (v && String(r[i] ?? '') !== v) return false; }
+      for (const i in S.ranges) {
+        if (combined && S.cutoffCols.includes(Number(i))) continue; // handled by combined filter
+        const {lo, hi} = S.ranges[i]; if (lo === null && hi === null) continue;
+        const val = num(r[i]); if (val === null) return false;
+        if (lo !== null && val < lo) return false;
+        if (hi !== null && val > hi) return false;
+      }
+      // combined cutoff: keep the row if ANY cutoff column is inside the range
+      if (cutoffActive) {
+        const anyMatch = S.cutoffCols.some(i => {
+          const val = num(r[i]); if (val === null) return false;
+          if (cLo !== null && val < cLo) return false;
+          if (cHi !== null && val > cHi) return false;
+          return true;
+        });
+        if (!anyMatch) return false;
+      }
+      return true;
+    });
+    if (S.sortCol !== null) {
+      const c = S.sortCol, isNum = S.types[c] === 'num';
+      rows = rows.slice().sort((a,b) => {
+        let x = a[c], y = b[c];
+        if (isNum) { x = num(x) ?? -Infinity; y = num(y) ?? -Infinity; return (x - y) * S.sortDir; }
+        return String(x).localeCompare(String(y), undefined, {numeric:true}) * S.sortDir;
+      });
+    }
+    return rows;
+  }
+
+  /* ---------- Render ---------- */
+  function render() {
+    const rows = filtered();
+    renderStats(rows);
+    renderChips();
+
+    const size = Number(pageSizeEl.value);
+    const pages = Math.max(1, Math.ceil(rows.length / size));
+    S.page = Math.min(S.page, pages);
+    const start = (S.page - 1) * size;
+    const view = rows.slice(start, start + size);
+
+    // header
+    thead.innerHTML = '';
+    const htr = document.createElement('tr');
+    S.headers.forEach((h, i) => {
+      const th = document.createElement('th');
+      th.textContent = h;
+      if (S.sortCol === i) { const a = document.createElement('span'); a.className='arrow'; a.textContent = S.sortDir === 1 ? '▲' : '▼'; th.appendChild(a); }
+      th.addEventListener('click', () => {
+        if (S.sortCol === i) S.sortDir *= -1; else { S.sortCol = i; S.sortDir = 1; }
+        render();
+      });
+      htr.appendChild(th);
+    });
+    thead.appendChild(htr);
+
+    // body
+    tbody.innerHTML = '';
+    const frag = document.createDocumentFragment();
+    const cutoffCol = firstCutoffCol();
+    view.forEach(r => {
+      const tr = document.createElement('tr');
+      S.headers.forEach((_, i) => {
+        const td = document.createElement('td');
+        td.textContent = r[i] == null ? '' : String(r[i]);
+        if (S.types[i] === 'num') td.className = 'num';
+        if (S.types[i] === 'name') td.className = 'name';
+        if (i === cutoffCol) td.className = 'num cutoff-cell';
+        tr.appendChild(td);
+      });
+      frag.appendChild(tr);
+    });
+    tbody.appendChild(frag);
+
+    emptyEl.classList.toggle('hidden', rows.length !== 0);
+    $('table').classList.toggle('hidden', rows.length === 0);
+
+    pageInfo.textContent = rows.length
+      ? `Showing ${start+1}–${Math.min(start+size, rows.length)} of ${rows.length.toLocaleString()}`
+      : 'No results';
+    prevBtn.disabled = S.page <= 1;
+    nextBtn.disabled = S.page >= pages;
+  }
+
+  function firstCutoffCol() {
+    // prefer a column literally named/containing "cutoff", else first numeric column
+    for (let i=0;i<S.headers.length;i++)
+      if (S.types[i]==='num' && norm(S.headers[i]).includes('cutoff')) return i;
+    for (let i=0;i<S.headers.length;i++)
+      if (S.types[i]==='num') return i;
+    return -1;
+  }
+
+  function renderStats(rows) {
+    const cards = [];
+    cards.push(stat('Colleges shown', rows.length.toLocaleString()));
+    cards.push(stat('Total in file', S.rows.length.toLocaleString()));
+    const cc = firstCutoffCol();
+    if (cc >= 0) {
+      const vals = rows.map(r => num(r[cc])).filter(v => v !== null);
+      if (vals.length) {
+        cards.push(stat(`Top ${S.headers[cc]}`, Math.max(...vals).toFixed(1)));
+        cards.push(stat(`Lowest ${S.headers[cc]}`, Math.min(...vals).toFixed(1)));
+      }
+    }
+    statsEl.innerHTML = cards.join('');
+  }
+  const stat = (k, v) => `<div class="card stat"><div class="k">${escapeHtml(k)}</div><div class="v">${v}</div></div>`;
+
+  function renderChips() {
+    const chips = [];
+    if (S.search) chips.push(chip('Search', S.search, () => { S.search=''; searchEl.value=''; render(); }));
+    for (const i in S.selects) if (S.selects[i]) chips.push(chip(S.headers[i], S.selects[i], () => {
+      S.selects[i]=''; const sel = fieldGrid.querySelectorAll('select')[selectIndex(i)]; if(sel) sel.value=''; syncAndRender();
+    }));
+    for (const i in S.text) if (S.text[i]) chips.push(chip(S.headers[i], S.text[i], () => { S.text[i]=''; rebuildFiltersKeepState(); }));
+    // combined cutoff chip
+    if (S.cutoffCols.length >= 2 && (S.cutoffRange.lo !== null || S.cutoffRange.hi !== null)) {
+      chips.push(chip('Cutoff', `${S.cutoffRange.lo ?? '−∞'} to ${S.cutoffRange.hi ?? '∞'}`, () => {
+        S.cutoffRange = { lo: null, hi: null };
+        const lo = fieldGrid.querySelector('.cutoff-lo'), hi = fieldGrid.querySelector('.cutoff-hi');
+        if (lo) lo.value=''; if (hi) hi.value=''; syncAndRender();
+      }));
+    }
+    for (const i in S.ranges) {
+      if (S.cutoffCols.length >= 2 && S.cutoffCols.includes(Number(i))) continue; // covered by combined chip
+      const rg = S.ranges[i]; if (rg && (rg.lo!==null||rg.hi!==null))
+        chips.push(chip(S.headers[i], `${rg.lo ?? '−∞'} to ${rg.hi ?? '∞'}`, () => { S.ranges[i]={lo:null,hi:null}; rebuildFiltersKeepState(); }));
+    }
+    chipsEl.innerHTML = '';
+    chips.forEach(c => chipsEl.appendChild(c));
+  }
+  function chip(label, val, onClose) {
+    const el = document.createElement('span'); el.className = 'chip';
+    el.innerHTML = `<b>${escapeHtml(label)}:</b> ${escapeHtml(String(val))}`;
+    const b = document.createElement('button'); b.textContent = '×'; b.setAttribute('aria-label','Remove filter');
+    b.addEventListener('click', onClose); el.appendChild(b); return el;
+  }
+  // helpers for chip removal
+  function selectIndex(colIdx) { // map column index to nth select in DOM
+    let n = -1; for (let i=0;i<=colIdx;i++){ if (fieldGrid.children[i] && fieldGrid.children[i].querySelector('select')) n++; } return n;
+  }
+  function syncAndRender(){ S.page=1; render(); }
+  function rebuildFiltersKeepState() {
+    const t={...S.text}, s={...S.selects}, r={...S.ranges}, srch=S.search;
+    buildFilters();
+    S.text=t; S.selects=s; S.ranges=r; S.search=srch; searchEl.value=srch;
+    // restore control values
+    let selN=0;
+    S.headers.forEach((h,i)=>{
+      const field=fieldGrid.children[i]; if(!field) return;
+      const sel=field.querySelector('select'); const inp=field.querySelector('input[type="search"]'); const nums=field.querySelectorAll('input[type="number"]');
+      if(sel){ sel.value=S.selects[i]||''; }
+      if(inp){ inp.value=S.text[i]||''; }
+      if(nums.length===2){ const rg=S.ranges[i]||{}; nums[0].value=rg.lo??''; nums[1].value=rg.hi??''; }
+    });
+    syncAndRender();
+  }
+
+  const escapeHtml = (s) => String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
+  function setStatus(msg, kind) { statusEl.textContent = msg; statusEl.className = 'status' + (kind ? ' '+kind : ''); }
+
+  function showLoaded(file, sheet) {
+    drop.classList.add('hidden');
+    loadedBar.classList.add('show');
+    results.classList.remove('hidden');
+    $('loaded-name').textContent = file.name;
+    $('loaded-meta').textContent = `Sheet “${sheet}” · ${S.rows.length.toLocaleString()} colleges · ${S.headers.length} columns`;
+  }
+
+  /* ---------- Events ---------- */
+  drop.addEventListener('click', () => fileInput.click());
+  $('change-file').addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => handleFile(fileInput.files[0]));
+  ['dragover','dragenter'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('drag'); }));
+  ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('drag'); }));
+  drop.addEventListener('drop', e => { if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+
+  searchEl.addEventListener('input', () => { S.search = searchEl.value.trim().toLowerCase(); S.page = 1; render(); });
+  pageSizeEl.addEventListener('change', () => { S.page = 1; render(); });
+  prevBtn.addEventListener('click', () => { if (S.page>1){S.page--; render();} });
+  nextBtn.addEventListener('click', () => { S.page++; render(); });
+  $('clear-all').addEventListener('click', () => {
+    S.text={}; S.selects={}; S.ranges={}; S.cutoffRange={lo:null,hi:null}; S.search=''; searchEl.value=''; S.page=1;
+    buildFilters(); render();
+  });
+
+  /* ---------- Export ---------- */
+  // Find the column the user is filtering as "branch" (a selected dropdown whose header mentions branch/course)
+  function selectedBranchName() {
+    for (const i in S.selects) {
+      const v = S.selects[i];
+      if (!v) continue;
+      const key = norm(S.headers[i]);
+      if (key.includes('branch') || key.includes('course')) return v;
+    }
+    // fallback: any active dropdown selection
+    for (const i in S.selects) if (S.selects[i]) return S.selects[i];
+    return '';
+  }
+
+  // Pull a 4-digit year from the cutoff column headers, e.g. "BC 2025" -> "2025"
+  function cutoffYear() {
+    const years = [];
+    S.cutoffCols.forEach(i => {
+      const m = String(S.headers[i]).match(/(19|20)\d{2}/);
+      if (m) years.push(m[0]);
+    });
+    // prefer the most recent year present
+    return years.length ? String(Math.max(...years.map(Number))) : '';
+  }
+
+  // Turn a label into a safe filename fragment
+  function safeName(s) {
+    return String(s).trim().replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim();
+  }
+
+  function exportFilename(ext) {
+    const branch = safeName(selectedBranchName());
+    const year = cutoffYear();
+    let name;
+    if (branch) {
+      name = year ? `${branch}_${year}` : branch;
+    } else {
+      // no single branch chosen — keep a clear generic name
+      const base = ($('loaded-name').textContent || 'tnea-cutoffs').replace(/\.(xlsx|xls|csv)$/i, '');
+      name = year ? `${safeName(base)}_${year}` : `${safeName(base)}-filtered`;
+    }
+    return `${name}.${ext}`;
+  }
+
+  function exportCSV() {
+    const rows = filtered();
+    if (!rows.length) return;
+    const esc = (v) => {
+      const s = v == null ? '' : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const lines = [S.headers.map(esc).join(',')];
+    rows.forEach(r => lines.push(S.headers.map((_, i) => esc(r[i])).join(',')));
+    // BOM so Excel opens UTF-8 correctly
+    const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+    downloadBlob(blob, exportFilename('csv'));
+  }
+
+  function exportXLSX() {
+    const rows = filtered();
+    if (!rows.length) return;
+    const aoa = [S.headers, ...rows.map(r => S.headers.map((_, i) => {
+      const n = num(r[i]);
+      // keep numeric cells as real numbers so Excel can sort/sum them
+      return (n !== null && S.types[i] === 'num' && String(r[i]).trim() !== '') ? n : (r[i] ?? '');
+    }))];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Filtered');
+    XLSX.writeFile(wb, exportFilename('xlsx'));
+  }
+
+  function downloadBlob(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  $('export-csv').addEventListener('click', exportCSV);
+  $('export-xlsx').addEventListener('click', exportXLSX);
+})();
+</script>
+</body>
+</html>
