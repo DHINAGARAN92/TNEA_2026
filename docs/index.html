@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="en">
 <head>
@@ -186,14 +185,14 @@
       <div class="mark">TN</div>
       <div>
         <h1>TNEA Cutoff Viewer</h1>
-        <p class="sub">Load your counselling workbook, then filter colleges by community, branch and cutoff.</p>
+        <p class="sub">Browse TNEA cutoff data by community, branch and cutoff. The workbook is loaded automatically.</p>
       </div>
     </div>
     <span class="yr-pill" id="yr-pill">Anna University Admissions</span>
   </header>
 
   <!-- Dropzone -->
-  <div class="card drop empty" id="drop">
+  <div class="card drop empty hidden" id="drop">
     <input type="file" id="file" accept=".xlsx,.xls,.csv">
     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
     <h3>Drop your cutoff file here</h3>
@@ -660,6 +659,37 @@
     $('loaded-meta').textContent = `Sheet “${sheet}” · ${S.rows.length.toLocaleString()} colleges · ${S.headers.length} columns`;
   }
 
+  
+  async function loadDefaultExcel() {
+    try {
+      const response = await fetch("tnea_cutoff_table.xlsx");
+      if (!response.ok) throw new Error("Unable to load default Excel file.");
+
+      const buffer = await response.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: "array" });
+      const sheet = wb.SheetNames[0];
+      const raw = XLSX.utils.sheet_to_json(wb.Sheets[sheet], {
+        header: 1,
+        defval: ""
+      });
+
+      buildModel(raw);
+
+      document.getElementById("loaded-name").textContent = "tnea_cutoff_table.xlsx";
+      document.getElementById("loaded-meta").textContent =
+        `Sheet "${sheet}" · ${S.rows.length.toLocaleString()} colleges · ${S.headers.length} columns`;
+
+      loadedBar.classList.add("show");
+      results.classList.remove("hidden");
+      setStatus("Default Excel loaded successfully.","ok");
+    } catch (err) {
+      console.error(err);
+      drop.classList.remove("hidden");
+      setStatus("Automatic loading failed. Please choose an Excel file manually.","err");
+    }
+  }
+
+
   /* ---------- Events ---------- */
   drop.addEventListener('click', () => fileInput.click());
   $('change-file').addEventListener('click', () => fileInput.click());
@@ -760,6 +790,7 @@
 
   $('export-csv').addEventListener('click', exportCSV);
   $('export-xlsx').addEventListener('click', exportXLSX);
+  loadDefaultExcel();
 })();
 </script>
 </body>
